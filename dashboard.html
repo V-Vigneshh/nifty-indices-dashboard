@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nifty Indices Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg:       #f4f4f2;
+    --surface:  #ffffff;
+    --surface2: #f0f0ee;
+    --border:   rgba(0,0,0,0.08);
+    --text:     #0b0b0b;
+    --muted:    #6b6b67;
+    --hint:     #9a9a96;
+    --up:       #0f7a56;
+    --up-bg:    #e1f5ee;
+    --dn:       #a32d2d;
+    --dn-bg:    #fcebeb;
+    --radius:   10px;
+    --grid:     #e4e3dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:       #141413;
+      --surface:  #1e1e1c;
+      --surface2: #262624;
+      --border:   rgba(255,255,255,0.08);
+      --text:     #f0efec;
+      --muted:    #9a9a96;
+      --hint:     #6b6b67;
+      --up:       #34c98a;
+      --up-bg:    #0a3d28;
+      --dn:       #e87070;
+      --dn-bg:    #3d0f0f;
+      --grid:     #2a2a28;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── Layout ── */
+  .page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+
+  /* ── Header ── */
+  .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; gap: 1rem; flex-wrap: wrap; }
+  .hdr-left h1 { font-size: 22px; font-weight: 600; }
+  .hdr-left p  { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .rbtn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 13px; cursor: pointer; transition: color .15s; }
+  .rbtn:hover { color: var(--text); }
+  .rbtn svg { width: 15px; height: 15px; }
+
+  /* ── Status bar ── */
+  .sbar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 1.1rem; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hint); flex-shrink: 0; }
+  .dot.live { background: #22c55e; box-shadow: 0 0 0 3px #22c55e22; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.3rem; }
+  .tab { padding: 6px 14px; font-size: 12px; font-weight: 500; border-radius: 20px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--muted); transition: all .12s; white-space: nowrap; }
+  .tab:hover { color: var(--text); border-color: rgba(0,0,0,.18); }
+  .tab.on  { background: var(--text); color: var(--bg); border-color: transparent; }
+
+  /* ── Overview grid ── */
+  .grid6 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+
+  /* ── Index card ── */
+  .icard { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); padding: 1.1rem 1.2rem; cursor: pointer; transition: box-shadow .15s, transform .15s; }
+  .icard:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); transform: translateY(-1px); }
+  .ic-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+  .ic-name { font-size: 13px; font-weight: 600; }
+  .ic-sub  { font-size: 10px; color: var(--hint); margin-top: 2px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+  .b-up { background: var(--up-bg); color: var(--up); }
+  .b-dn { background: var(--dn-bg); color: var(--dn); }
+  .ic-price { font-size: 22px; font-weight: 700; margin: 6px 0; letter-spacing: -0.5px; }
+  .ic-price.up { color: var(--up); }
+  .ic-price.dn { color: var(--dn); }
+  .ic-meta { display: flex; gap: 14px; font-size: 11px; color: var(--hint); }
+  .ic-meta span b { color: var(--muted); font-weight: 500; }
+  .sparkwrap { position: relative; height: 68px; margin-top: 10px; }
+  .skeleton { background: linear-gradient(90deg, var(--surface2) 25%, var(--bg) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* ── Detail panel ── */
+  .det { display: none; }
+  .krow { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1.2rem; }
+  .kpi  { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); padding: .85rem 1rem; }
+  .kpi-lbl { font-size: 11px; color: var(--hint); margin-bottom: 4px; }
+  .kpi-val { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
+  .kpi-val.up { color: var(--up); }
+  .kpi-val.dn { color: var(--dn); }
+  .kpi-sub { font-size: 11px; color: var(--hint); margin-top: 3px; }
+
+  /* ── Breadcrumb ── */
+  .adv-row { display: flex; gap: 10px; margin-bottom: 1.2rem; flex-wrap: wrap; }
+  .adv-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 12px; text-align: center; }
+  .adv-pill .num { font-size: 18px; font-weight: 700; }
+  .adv-pill .lbl { font-size: 10px; color: var(--hint); margin-top: 1px; }
+  .num-up { color: var(--up); }
+  .num-dn { color: var(--dn); }
+
+  /* ── Chart card ── */
+  .ccard { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); padding: 1.1rem 1.3rem; margin-bottom: .9rem; }
+  .cc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; flex-wrap: wrap; gap: .5rem; }
+  .cc-title { font-size: 14px; font-weight: 600; }
+  .prow { display: flex; gap: 3px; }
+  .pb { font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--hint); font-weight: 500; transition: all .1s; }
+  .pb:hover { color: var(--muted); }
+  .pb.on { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .cwrap { position: relative; height: 240px; }
+  .ld { display: flex; align-items: center; justify-content: center; height: 100%; gap: 8px; font-size: 13px; color: var(--hint); }
+  .spin { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%; animation: sp .6s linear infinite; flex-shrink: 0; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  /* ── Footer ── */
+  .foot { font-size: 11px; color: var(--hint); text-align: right; margin-top: .6rem; }
+
+  /* ── Error banner ── */
+  .err-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius); padding: 10px 14px; font-size: 12px; color: #856404; margin-bottom: 1rem; display: none; }
+  @media (prefers-color-scheme: dark) { .err-banner { background: #332900; border-color: #664d00; color: #ffc107; } }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .hdr { flex-direction: column; align-items: flex-start; }
+    .kpi-val { font-size: 16px; }
+    .ic-price { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <h1>Nifty Indices Dashboard</h1>
+      <p id="ts">Connecting to backend…</p>
+    </div>
+    <button class="rbtn" onclick="init()" title="Refresh all data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Status bar -->
+  <div class="sbar">
+    <div class="dot" id="dot"></div>
+    <span id="mkt-status">Checking market…</span>
+    <span style="color:var(--hint)">·</span>
+    <span id="updated-at">—</span>
+  </div>
+
+  <!-- Error banner -->
+  <div class="err-banner" id="err-banner"></div>
+
+  <!-- Tabs -->
+  <div class="tabs" role="tablist" id="tabbar">
+    <button class="tab on" onclick="goOverview(this)">All indices</button>
+    <button class="tab" onclick="goDetail('NIFTY 50', this)">Nifty 50</button>
+    <button class="tab" onclick="goDetail('NIFTY 500', this)">Nifty 500</button>
+    <button class="tab" onclick="goDetail('NIFTY MIDCAP 150', this)">Midcap 150</button>
+    <button class="tab" onclick="goDetail('NIFTY SMALLCAP 250', this)">Smallcap 250</button>
+    <button class="tab" onclick="goDetail('NIFTY IT', this)">Nifty IT</button>
+    <button class="tab" onclick="goDetail('NIFTY BANK', this)">Nifty Bank</button>
+    <button class="tab" onclick="goDetail('NIFTY FMCG', this)">Nifty FMCG</button>
+    <button class="tab" onclick="goDetail('NIFTY PHARMA', this)">Nifty Pharma</button>
+  </div>
+
+  <!-- Overview -->
+  <div id="ovp">
+    <div class="grid6" id="g6"></div>
+  </div>
+
+  <!-- Detail -->
+  <div class="det" id="detp">
+    <div class="krow" id="krow"></div>
+    <div class="adv-row" id="advrow"></div>
+    <div class="ccard">
+      <div class="cc-head">
+        <span class="cc-title" id="dtitle">—</span>
+        <div class="prow">
+          <button class="pb on" onclick="setPer('1W',this)">1W</button>
+          <button class="pb" onclick="setPer('1M',this)">1M</button>
+          <button class="pb" onclick="setPer('3M',this)">3M</button>
+          <button class="pb" onclick="setPer('6M',this)">6M</button>
+          <button class="pb" onclick="setPer('1Y',this)">1Y</button>
+          <button class="pb" onclick="setPer('MAX',this)">MAX</button>
+        </div>
+      </div>
+      <div class="cwrap">
+        <div class="ld" id="dld"><div class="spin"></div> Loading chart…</div>
+        <canvas id="dc" style="display:none" role="img" aria-label="Index price history chart"></canvas>
+      </div>
+    </div>
+    <div class="foot">Data: NSE India · Real-time during market hours</div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+const API = 'http://localhost:5050';
+
+const CFG = {
+  'NIFTY 50':         { color: '#2a78d6', sub: 'Large-cap · 50 stocks' },
+  'NIFTY 500':        { color: '#5f8d2f', sub: 'Broad market · 500 stocks' },
+  'NIFTY MIDCAP 150': { color: '#1baf7a', sub: 'Mid-cap · 150 stocks' },
+  'NIFTY SMALLCAP 250': { color: '#eb6834', sub: 'Small-cap · 250 stocks' },
+  'NIFTY IT':         { color: '#6250d6', sub: 'Technology sector' },
+  'NIFTY BANK':       { color: '#eda100', sub: 'Banking sector' },
+  'NIFTY FMCG':       { color: '#e87ba4', sub: 'FMCG sector' },
+  'NIFTY PHARMA':     { color: '#00a6a6', sub: 'Healthcare sector' },
+};
+const TAB_LABELS = {
+  'NIFTY 50': 'Nifty 50',
+  'NIFTY 500': 'Nifty 500',
+  'NIFTY MIDCAP 150': 'Midcap 150',
+  'NIFTY SMALLCAP 250': 'Smallcap 250',
+  'NIFTY IT': 'Nifty IT',
+  'NIFTY BANK': 'Nifty Bank',
+  'NIFTY FMCG': 'Nifty FMCG',
+  'NIFTY PHARMA': 'Nifty Pharma',
+};
+const KEYS = Object.keys(CFG);
+
+let allData      = [];
+let miniCharts   = {};
+let detailChart  = null;
+let activeKey    = null;
+let activePer    = '1W';
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+const fmtN  = v => (+v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtK  = v => (+v).toLocaleString('en-IN', { notation: 'compact', maximumFractionDigits: 1 });
+const fmtPct= v => (v >= 0 ? '+' : '') + (+v).toFixed(2) + '%';
+const fmtVal= v => (v === null || v === undefined || v === '' ? '—' : (+v).toFixed(2));
+const sid   = s => s.replace(/ /g, '_');
+const dark  = () => window.matchMedia('(prefers-color-scheme:dark)').matches;
+const gc    = () => ({ grid: dark() ? '#2a2a28' : '#e4e3dc', muted: '#9a9a96', text: dark() ? '#f0efec' : '#0b0b0b' });
+
+function showErr(msg) {
+  const el = document.getElementById('err-banner');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'block';
+}
+function hideErr() { document.getElementById('err-banner').style.display = 'none'; }
+
+function selectTabForKey(k) {
+  document.querySelectorAll('.tab').forEach(t => {
+    const selected = t.textContent.trim() === TAB_LABELS[k];
+    t.classList.toggle('on', selected);
+  });
+}
+
+function setActivePeriodButton(per) {
+  document.querySelectorAll('.pb').forEach(b => b.classList.toggle('on', b.textContent.trim() === per));
+}
+
+// ── Build overview grid ────────────────────────────────────────────────────
+function buildGrid() {
+  const g = document.getElementById('g6');
+  g.innerHTML = '';
+  KEYS.forEach(k => {
+    const id  = sid(k);
+    const cfg = CFG[k];
+    const el  = document.createElement('div');
+    el.className = 'icard';
+    el.id = 'card-' + id;
+    el.onclick = () => goDetail(k);
+    el.innerHTML = `
+      <div class="ic-top">
+        <div><div class="ic-name">${k}</div><div class="ic-sub">${cfg.sub}</div></div>
+        <span class="badge" id="b-${id}">…</span>
+      </div>
+      <div class="ic-price" id="p-${id}">Loading…</div>
+      <div class="ic-meta">
+        <span>H <b id="h-${id}">—</b></span>
+        <span>L <b id="l-${id}">—</b></span>
+        <span>Prev <b id="pc-${id}">—</b></span>
+        <span>52W H <b id="y-${id}">—</b></span>
+        <span>PE <b id="pe-${id}">—</b></span>
+        <span>PB <b id="pb-${id}">—</b></span>
+      </div>
+      <div class="sparkwrap skeleton" id="sk-${id}">
+        <canvas id="sp-${id}" style="display:none" role="img" aria-label="${k} 1-month trend"></canvas>
+      </div>
+    `;
+    g.appendChild(el);
+  });
+}
+
+function fillCards(rows) {
+  rows.forEach(r => {
+    const k   = r.name;
+    const id  = sid(k);
+    const up  = r.pChange >= 0;
+
+    document.getElementById('p-'+id).textContent  = '₹' + fmtN(r.last);
+    document.getElementById('p-'+id).className    = 'ic-price ' + (up ? 'up' : 'dn');
+    const b = document.getElementById('b-'+id);
+    b.textContent = fmtPct(r.pChange);
+    b.className   = 'badge ' + (up ? 'b-up' : 'b-dn');
+    document.getElementById('h-'+id).textContent  = '₹' + fmtN(r.high);
+    document.getElementById('l-'+id).textContent  = '₹' + fmtN(r.low);
+    document.getElementById('pc-'+id).textContent = '₹' + fmtN(r.previousClose);
+    document.getElementById('y-'+id).textContent  = r.yearHigh ? '₹' + fmtN(r.yearHigh) : '—';
+    document.getElementById('pe-'+id).textContent = fmtVal(r.pe);
+    document.getElementById('pb-'+id).textContent = fmtVal(r.pb);
+  });
+}
+
+// ── Sparklines (1M history) ────────────────────────────────────────────────
+async function loadSpark(k) {
+  try {
+    const res  = await fetch(`${API}/api/history/${encodeURIComponent(k)}/1M`);
+    const json = await res.json();
+    if (!json.ok || !json.data.length) return;
+
+    const pts  = json.data.map(d => +d.close).filter(v => !isNaN(v));
+    if (pts.length < 2) return;
+
+    const id   = sid(k);
+    const cfg  = CFG[k];
+    const sk   = document.getElementById('sk-'+id);
+    const cv   = document.getElementById('sp-'+id);
+    sk.classList.remove('skeleton');
+    cv.style.display = 'block';
+
+    if (miniCharts[k]) miniCharts[k].destroy();
+    miniCharts[k] = new Chart(cv, {
+      type: 'line',
+      data: {
+        labels: pts.map((_, i) => i),
+        datasets: [{ data: pts, borderColor: cfg.color, borderWidth: 1.5,
+          pointRadius: 0, tension: 0.3, fill: true, backgroundColor: cfg.color + '1a' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales:  { x: { display: false }, y: { display: false } },
+        animation: { duration: 400 }
+      }
+    });
+  } catch (_) {}
+}
+
+// ── Overview / Detail nav ──────────────────────────────────────────────────
+function goOverview(btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  btn?.classList.add('on');
+  document.getElementById('ovp').style.display  = '';
+  document.getElementById('detp').style.display = 'none';
+  activeKey = null;
+}
+
+async function goDetail(k, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  else selectTabForKey(k);
+  activeKey = k;
+  activePer = 'MAX';
+  setActivePeriodButton(activePer);
+
+  document.getElementById('ovp').style.display  = 'none';
+  document.getElementById('detp').style.display = 'block';
+  document.getElementById('dtitle').textContent  = k;
+
+  // fill KPIs from cached data
+  const r = allData.find(x => x.name === k);
+  if (r) {
+    const up = r.pChange >= 0;
+    document.getElementById('krow').innerHTML = `
+      <div class="kpi"><div class="kpi-lbl">Current</div>
+        <div class="kpi-val ${up?'up':'dn'}">₹${fmtN(r.last)}</div>
+        <div class="kpi-sub">${fmtPct(r.pChange)} today</div></div>
+      <div class="kpi"><div class="kpi-lbl">Open</div>
+        <div class="kpi-val">₹${fmtN(r.open)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Day high</div>
+        <div class="kpi-val">₹${fmtN(r.high)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Day low</div>
+        <div class="kpi-val">₹${fmtN(r.low)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Prev close</div>
+        <div class="kpi-val">₹${fmtN(r.previousClose)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">52W high</div>
+        <div class="kpi-val">₹${fmtN(r.yearHigh||0)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">52W low</div>
+        <div class="kpi-val">₹${fmtN(r.yearLow||0)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">PE</div>
+        <div class="kpi-val">${fmtVal(r.pe)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">PB</div>
+        <div class="kpi-val">${fmtVal(r.pb)}</div></div>
+    `;
+
+    // advances / declines pill
+    if (r.advances || r.declines) {
+      document.getElementById('advrow').innerHTML = `
+        <div class="adv-pill"><div class="num num-up">${r.advances||'—'}</div><div class="lbl">Advances</div></div>
+        <div class="adv-pill"><div class="num num-dn">${r.declines||'—'}</div><div class="lbl">Declines</div></div>
+        <div class="adv-pill"><div class="num">${r.unchanged||'—'}</div><div class="lbl">Unchanged</div></div>
+      `;
+    } else {
+      document.getElementById('advrow').innerHTML = '';
+    }
+  }
+
+  await loadDetailChart(k, activePer);
+}
+
+// ── Detail chart ──────────────────────────────────────────────────────────
+async function loadDetailChart(k, per) {
+  const dld = document.getElementById('dld');
+  const dc  = document.getElementById('dc');
+  dld.style.display = 'flex';
+  dld.innerHTML = '<div class="spin"></div> Fetching history…';
+  dc.style.display = 'none';
+
+  try {
+    const res  = await fetch(`${API}/api/history/${encodeURIComponent(k)}/${per}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+
+    const rows   = json.data;
+    const labels = rows.map(r => {
+      const d = new Date(r.date);
+      return isNaN(d) ? r.date :
+        d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: (per === '1Y' || per === 'MAX') ? '2-digit' : undefined });
+    });
+    const vals = rows.map(r => +r.close);
+
+    if (detailChart) detailChart.destroy();
+    dc.style.display  = 'block';
+    dld.style.display = 'none';
+
+    const cc  = gc();
+    const cfg = CFG[k] || { color: '#2a78d6' };
+
+    detailChart = new Chart(dc, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: k,
+          data: vals,
+          borderColor: cfg.color,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.25,
+          fill: true,
+          backgroundColor: cfg.color + '15',
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: dark() ? '#1e1e1c' : '#fff',
+            titleColor: cc.text, bodyColor: cc.muted,
+            borderColor: cc.grid, borderWidth: 1,
+            callbacks: {
+              label: ctx => ` ₹${(+ctx.raw).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: cc.muted, font: { size: 11 }, maxTicksLimit: 8, maxRotation: 0 },
+            grid:  { color: cc.grid, lineWidth: 0.5 }
+          },
+          y: {
+            ticks: { color: cc.muted, font: { size: 11 }, callback: v => '₹' + fmtK(v) },
+            grid:  { color: cc.grid, lineWidth: 0.5 }
+          }
+        }
+      }
+    });
+  } catch (e) {
+    dld.innerHTML = `<span style="font-size:12px;color:var(--hint)">Could not load history: ${e.message}</span>`;
+  }
+}
+
+function setPer(p, btn) {
+  activePer = p;
+  setActivePeriodButton(p);
+  if (activeKey) loadDetailChart(activeKey, p);
+}
+
+// ── Market status ─────────────────────────────────────────────────────────
+async function loadStatus() {
+  try {
+    const res  = await fetch(`${API}/api/status`);
+    const json = await res.json();
+    if (!json.ok) return;
+    const d = json.data;
+    const markets = d.marketState || [];
+    const cm = markets.find(m => m.market === 'Capital Market') || markets[0];
+    if (cm) {
+      const open = cm.marketStatus === 'Open';
+      document.getElementById('dot').className = 'dot ' + (open ? 'live' : '');
+      document.getElementById('mkt-status').textContent =
+        open ? 'Market open' : `Market closed · ${cm.tradeDate || ''}`;
+    }
+  } catch (_) {}
+}
+
+// ── Main init ─────────────────────────────────────────────────────────────
+async function init() {
+  hideErr();
+  buildGrid();
+  document.getElementById('ts').textContent = 'Fetching live data from NSE…';
+
+  try {
+    const res  = await fetch(`${API}/api/indices`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+
+    allData = json.data;
+    fillCards(allData);
+
+    const now = new Date();
+    document.getElementById('ts').textContent =
+      `Updated ${now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` +
+      ` · ${allData.length} indices loaded`;
+    document.getElementById('updated-at').textContent = now.toLocaleTimeString('en-IN');
+
+    // load sparklines in parallel
+    await Promise.allSettled(KEYS.map(k => loadSpark(k)));
+
+    loadStatus();
+
+    // auto-refresh every 60s during market hours
+    setTimeout(init, 60_000);
+
+  } catch (e) {
+    showErr(
+      `Cannot reach backend at ${API}. ` +
+      `Make sure you ran: python app.py  (error: ${e.message})`
+    );
+    document.getElementById('ts').textContent = 'Backend not reachable';
+    document.getElementById('dot').className = 'dot';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
