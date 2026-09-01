@@ -6,9 +6,10 @@ Then: open dashboard.html in your browser
 
 import time
 import json
+import os
 import requests
 import yfinance as yf
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -250,14 +251,10 @@ def status():
 
 @app.route("/")
 def root():
-    return (
-        "<h3>Nifty Dashboard API is running ✓</h3>"
-        "<p>Routes: /api/indices &nbsp;|&nbsp; "
-        "/api/history/NIFTY 50/1M &nbsp;|&nbsp; /api/status</p>"
-        "<p>Open <b>dashboard.html</b> in your browser.</p>"
-    )
+    return send_from_directory(app.root_path, "dashboard.html")
 
 
 if __name__ == "__main__":
-    print("\n  ✓ Starting Nifty Dashboard backend on http://localhost:5050\n")
-    app.run(port=5050, debug=False)
+    port = int(os.environ.get("PORT", 5050))
+    print(f"\n  ✓ Starting Nifty Dashboard on http://localhost:{port}\n")
+    app.run(host="0.0.0.0", port=port, debug=False)

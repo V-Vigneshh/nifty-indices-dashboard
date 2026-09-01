@@ -28,7 +28,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Keep the server running, then open `dashboard.html` in a browser.
+Keep the server running, then open `http://localhost:5050` in a browser.
 
 The API runs at `http://localhost:5050`.
 
@@ -38,10 +38,10 @@ Deploy the Flask API to Render (or another Python host):
 
 ```text
 Build command: pip install -r requirements.txt
-Start command: gunicorn app:app
+Start command: gunicorn --bind 0.0.0.0:$PORT app:app
 ```
 
-Deploy `dashboard.html` to Netlify, GitHub Pages, or Cloudflare Pages. Before deploying the frontend, set its `API` constant to the public URL of the deployed backend.
+The Flask app serves the dashboard and API from one deployment, so no separate frontend host or API URL configuration is required.
 
 ## Data Sources
 
